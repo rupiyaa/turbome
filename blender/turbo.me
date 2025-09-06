@@ -1,84 +1,97 @@
-#
-# Blender turbo.me file
-# https://github.com/turboapps/turbome/tree/master/blender
-#
-# Licensed under the Apache License, Version 2.0
-# http://www.apache.org/licenses/LICENSE-2.0
+import bpy
 
-meta title="Blender"
-meta namespace="blender"
-meta name="blender"
+# -------------------------------------------------------
+# CLEAN SCENE
+# -------------------------------------------------------
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.delete(use_global=False)
 
-###################################
-# Pull dependency images
-###################################
+# -------------------------------------------------------
+# CREATE MAIN SHOE RACK BODY
+# -------------------------------------------------------
+bpy.ops.mesh.primitive_cube_add(size=2, location=(0,0,1))
+rack = bpy.context.active_object
+rack.scale = (1, 0.5, 1.5)   # Width, Depth, Height
+rack.name = "ShoeRack"
 
-using wget,powershell
+# -------------------------------------------------------
+# CREATE SHELVES (3 total)
+# -------------------------------------------------------
+shelves = []
+for i, z in enumerate([0.2, 0.8, 1.2]):  # z-heights
+    bpy.ops.mesh.primitive_cube_add(size=2, location=(0,0,z))
+    shelf = bpy.context.active_object
+    shelf.scale = (0.95, 0.48, 0.02)
+    shelf.name = f"Shelf_{i+1}"
+    shelves.append(shelf)
 
+# -------------------------------------------------------
+# CREATE PUSH-PULL FLAP ("PLACE ITEMS HERE")
+# -------------------------------------------------------
+bpy.ops.mesh.primitive_cube_add(size=1, location=(0,0,1.55))
+flap = bpy.context.active_object
+flap.scale = (0.9, 0.05, 0.2)
+flap.name = "Flap"
 
-###################################
-# Download and install
-###################################
+# Add text label
+bpy.ops.object.text_add(location=(0,0.3,1.55))
+text = bpy.context.active_object
+text.data.body = "PLACE ITEMS HERE"
+text.rotation_euler[0] = 1.57
+text.scale = (0.3,0.3,0.3)
 
-cmd mkdir c:\Workspace
-workdir c:\Workspace
+# -------------------------------------------------------
+# CREATE DOOR
+# -------------------------------------------------------
+bpy.ops.mesh.primitive_cube_add(size=2, location=(1.01,0,1))
+door = bpy.context.active_object
+door.scale = (0.05, 0.5, 1.5)
+door.name = "Door"
 
-# Write powershell script
-batch cmd
-  echo param([string]$arg) >> getUrlAndVersion.ps1
-  echo [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 >> getUrlAndVersion.ps1
-  echo $page = Invoke-WebRequest -Uri "https://www.blender.org/download/" >> getUrlAndVersion.ps1
-  echo $link = ($page.Links.href -match "windows64.msi")[0]  >> getUrlAndVersion.ps1
-  echo $link -match "[0-9]\.[0-9]*[a-z]" ^| Out-Null>> getUrlAndVersion.ps1
-  echo $version = $Matches[0] >> getUrlAndVersion.ps1
-  echo if($arg -ne "link") {Write-Host $version; Exit 0} >> getUrlAndVersion.ps1
-  echo $link -match "[0-9]\.[0-9]*" ^| Out-Null>> getUrlAndVersion.ps1
-  echo $versionMain = $Matches[0] >> getUrlAndVersion.ps1
-  echo $downloadUrl = "https://download.blender.org/release/" >> getUrlAndVersion.ps1
-  echo $page = Invoke-WebRequest -Uri $downloadUrl >> getUrlAndVersion.ps1
-  echo $downloadUrl += $page.Links.href -match $versionMain >> getUrlAndVersion.ps1
-  echo $page = Invoke-WebRequest -Uri $downloadUrl >> getUrlAndVersion.ps1
-  echo $downloadUrl += $page.Links.href -match $version+"-windows32.zip" >> getUrlAndVersion.ps1
-  echo Write-Host $downloadUrl >> getUrlAndVersion.ps1
+# -------------------------------------------------------
+# CREATE HOOKS (simple cylinders inside door)
+# -------------------------------------------------------
+hooks = []
+for i, z in enumerate([0.5, 1.0, 1.5]):
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.02, depth=0.2, location=(1.05, -0.3, z))
+    hook = bpy.context.active_object
+    hook.rotation_euler[1] = 1.57
+    hook.name = f"Hook_{i+1}"
+    hooks.append(hook)
 
-# Get url
-cmd powershell -File getUrlAndVersion.ps1 -arg "link"
-var url=last
+# -------------------------------------------------------
+# ANIMATION
+# -------------------------------------------------------
+scene = bpy.context.scene
+scene.frame_start = 1
+scene.frame_end = 120
 
-cmd powershell -File getUrlAndVersion.ps1 -arg "version"
-var tag=last
+# Animate flap open (frames 1–30)
+flap.rotation_euler[1] = 0
+flap.keyframe_insert(data_path="rotation_euler", frame=1)
+flap.rotation_euler[1] = -1.0
+flap.keyframe_insert(data_path="rotation_euler", frame=30)
 
-# Install
-cmd wget -Oblender.zip %url%
-cmd powershell Expand-Archive blender.zip C:\blenderTemp
+# Animate flap close (frames 30–60)
+flap.rotation_euler[1] = 0
+flap.keyframe_insert(data_path="rotation_euler", frame=60)
 
-cmd dir /b C:\blenderTemp
-var blenderpath = "C:\blenderTemp\" + last
-cmd move %blenderpath% C:\blender
+# Animate door open (frames 60–90)
+door.rotation_euler[2] = 0
+door.keyframe_insert(data_path="rotation_euler", frame=60)
+door.rotation_euler[2] = -1.57
+door.keyframe_insert(data_path="rotation_euler", frame=90)
 
+# Animate door close (frames 90–120)
+door.rotation_euler[2] = 0
+door.keyframe_insert(data_path="rotation_euler", frame=120)
 
-# Install file associations
-cmd C:\blender\blender.exe -r
+# -------------------------------------------------------
+# RENDER SETTINGS
+# -------------------------------------------------------
+scene.render.engine = 'CYCLES'
+scene.render.image_settings.file_format = 'FFMPEG'
+scene.render.ffmpeg.format = 'MPEG4'
+scene.render.filepath = "//shoe_rack_animation.mp4"
 
-###################################
-# Startup File
-###################################
-startup file ("C:\blender\blender.exe")
-
-###################################
-# Environment Variables
-###################################
-
-# No variables needed
-
-###################################
-# Clean up
-###################################
-
-workdir c:\
-
-cmd rmdir c:\Workspace /s /q
-cmd rmdir c:\wget /s /q
-cmd rmdir C:\blenderTemp /s /q
-
-meta tag=tag
+print("✅ Shoe rack animation ready. Run Render > Render Animation to export.")
